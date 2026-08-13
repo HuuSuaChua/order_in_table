@@ -1,6 +1,9 @@
 import LoginForm from "@/components/auth/LoginForm";
 import { UtensilsCrossed, ShieldCheck } from "lucide-react";
-
+export const metadata = {
+  title: "Đăng Nhập Quản Lý | Order-In-Table",
+  description: "Trang đăng nhập dành cho Quản lý, Phục vụ và Đầu bếp.",
+};
 export default function AdminLoginPage() {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0a0d14] p-4 text-slate-100 font-sans antialiased">
