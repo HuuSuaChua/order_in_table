@@ -64,9 +64,6 @@ export default async function TableOrderPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-slate-50/60 pb-32 font-sans text-slate-800 antialiased">
-      {/* ================================ */}
-      {/* Sticky Header                    */}
-      {/* ================================ */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/80 backdrop-blur-md transition-all">
         <div className="mx-auto max-w-5xl px-4 py-3.5 sm:px-6">
           <div className="flex items-center justify-between">
@@ -77,7 +74,7 @@ export default async function TableOrderPage({ params }: Props) {
               </div>
               <div>
                 <h1 className="text-base font-bold text-slate-900 sm:text-lg">
-                  Nhà hàng Gourmet
+                  Ăn vặt DÌ DIỆU
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
                   Trải nghiệm gọi món tại bàn

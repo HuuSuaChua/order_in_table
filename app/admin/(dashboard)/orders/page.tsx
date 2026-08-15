@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
 
 import { UtensilsCrossed } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
 import {
   getOrders,
@@ -26,14 +28,11 @@ import OrderGrid from "@/components/admin/orders/OrderGrid";
 import OrderDetailModal from "@/components/admin/orders/OrderDetailModal";
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders] =
-    useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [searchQuery, setSearchQuery] =
-    useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [statusFilter, setStatusFilter] =
     useState<OrderStatus | "all">("all");
@@ -41,51 +40,112 @@ export default function AdminOrdersPage() {
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
 
-  const [updating, setUpdating] =
-    useState(false);
+  const [updating, setUpdating] = useState(false);
 
   // =========================
-  // Load
+  // Load orders
+  // =========================
+
+  const loadOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const data = await getOrders();
+
+      setOrders(data);
+    } catch (error) {
+      console.error("Load orders error:", error);
+
+      alert("Không thể tải danh sách đơn hàng.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // =========================
+  // Initial load
   // =========================
 
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [loadOrders]);
 
-  async function loadOrders() {
-    try {
-      setLoading(true);
+  // =========================
+  // Supabase Realtime
+  // =========================
 
-      const data =
-        await getOrders();
+  useEffect(() => {
+    console.log("🔵 Connecting orders realtime...");
 
-      setOrders(data);
-    } catch (error) {
-      console.error(error);
+    const channel = supabase
+      .channel("admin-orders-realtime")
 
-      alert(
-        "Không thể tải danh sách đơn hàng."
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+        },
+        async (payload) => {
+          console.log(
+            "🟢 Order realtime event:",
+            payload.eventType,
+            payload
+          );
+
+          // Có order mới
+          if (payload.eventType === "INSERT") {
+            console.log("🆕 Có order mới!");
+
+            await loadOrders();
+          }
+
+          // Order được cập nhật trạng thái
+          if (payload.eventType === "UPDATE") {
+            console.log("🔄 Order được cập nhật!");
+
+            await loadOrders();
+          }
+
+          // Order bị xóa
+          if (payload.eventType === "DELETE") {
+            console.log("🗑️ Order bị xóa!");
+
+            await loadOrders();
+          }
+        }
+      )
+
+      .subscribe((status) => {
+        console.log(
+          "📡 Orders realtime status:",
+          status
+        );
+      });
+
+    return () => {
+      console.log(
+        "🔴 Disconnect orders realtime"
       );
-    } finally {
-      setLoading(false);
-    }
-  }
+
+      supabase.removeChannel(channel);
+    };
+  }, [loadOrders]);
 
   // =========================
   // Filter
   // =========================
 
   const filteredOrders = useMemo(() => {
-    const keyword =
-      searchQuery
-        .toLowerCase()
-        .trim();
+    const keyword = searchQuery
+      .toLowerCase()
+      .trim();
 
     return orders.filter((order) => {
       const matchesStatus =
         statusFilter === "all" ||
-        order.status ===
-          statusFilter;
+        order.status === statusFilter;
 
       const matchesSearch =
         !keyword ||
@@ -157,6 +217,10 @@ export default function AdminOrdersPage() {
     }
   }
 
+  // =========================
+  // UI
+  // =========================
+
   return (
     <main className="min-h-screen bg-[#0b0f17] p-4 font-sans text-slate-100 md:p-8">
       {/* Background */}
@@ -174,43 +238,29 @@ export default function AdminOrdersPage() {
 
         <OrderStats
           total={orders.length}
-          pending={
-            orders.filter(
-              (order) =>
-                order.status ===
-                  "pending" ||
-                order.status ===
-                  "confirmed"
-            ).length
-          }
-          preparing={
-            orders.filter(
-              (order) =>
-                order.status ===
-                "preparing"
-            ).length
-          }
-          completed={
-            orders.filter(
-              (order) =>
-                order.status ===
-                "completed"
-            ).length
-          }
+          pending={orders.filter(
+            (order) =>
+              order.status === "pending" ||
+              order.status === "confirmed"
+          ).length}
+          preparing={orders.filter(
+            (order) =>
+              order.status === "preparing"
+          ).length}
+          completed={orders.filter(
+            (order) =>
+              order.status === "completed"
+          ).length}
         />
 
         <OrderSearch
           value={searchQuery}
-          onChange={
-            setSearchQuery
-          }
+          onChange={setSearchQuery}
         />
 
         <OrderFilters
           value={statusFilter}
-          onChange={
-            setStatusFilter
-          }
+          onChange={setStatusFilter}
         />
 
         {/* Title */}
@@ -224,11 +274,7 @@ export default function AdminOrdersPage() {
 
           <span className="rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-xs text-slate-400">
             Hiển thị{" "}
-            {
-              filteredOrders.length
-            }
-            /
-            {orders.length}
+            {filteredOrders.length}/{orders.length}
           </span>
         </div>
 
@@ -240,8 +286,7 @@ export default function AdminOrdersPage() {
               Đang tải đơn hàng...
             </p>
           </div>
-        ) : filteredOrders.length ===
-          0 ? (
+        ) : filteredOrders.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center">
             <UtensilsCrossed className="mx-auto mb-4 h-10 w-10 text-slate-700" />
 
@@ -251,15 +296,9 @@ export default function AdminOrdersPage() {
           </div>
         ) : (
           <OrderGrid
-            orders={
-              filteredOrders
-            }
-            onView={
-              setSelectedOrder
-            }
-            onStatusChange={
-              handleStatusChange
-            }
+            orders={filteredOrders}
+            onView={setSelectedOrder}
+            onStatusChange={handleStatusChange}
           />
         )}
       </div>
@@ -269,9 +308,7 @@ export default function AdminOrdersPage() {
         onClose={() =>
           setSelectedOrder(null)
         }
-        onStatusChange={
-          handleStatusChange
-        }
+        onStatusChange={handleStatusChange}
       />
 
       {updating && (
